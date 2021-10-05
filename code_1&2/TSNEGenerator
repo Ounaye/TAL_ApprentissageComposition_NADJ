@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Jun 25 10:29:21 2021
+
+@author: yannis.coutouly
+"""
+
+"""
+
+This file is for testing the TSNE representation 
+
+We want to read a file of fixed form (100)
+Then we will take some N1 and some N2 (26:N1=13_N2=13)
+Then we take some random word (24)
+"""
+
+import numpy as np
+import tensorflow as tf
+from gensim.models import Word2Vec
+from sklearn.datasets import load_digits
+from sklearn.manifold import TSNE
+from matplotlib import pyplot as plt
+import seaborn as sns
+
+###############################################################################
+
+generalPath = "../BatchExp/SecondBatchExp/DataExperience/"
+fixedFormFilePath = generalPath + "Test/test_N1=8_Ot=8.txt"
+randomWordPath = generalPath + "Utils/randomFrWord.txt"
+
+randomWordTab = ["manger","boire","antilope","chaussette","canard","conserve","appeler","croire","vaccin",
+                 "tristesse","attendre","triste","grand","merveilleux","glamour","cycle","console","défaut","volet",
+                 "muet","ligne","options","menu","sushi"]
+
+print("Start to load the Data ")
+embeddings = Word2Vec.load("../BatchExp/FirstBatchExp_VPropre/DataExperience/Embeddings/embeddings_300_full10Fusion.model")
+print("End to load the Data")
+
+def makeTabOfData():
+    tabOfVector = np.zeros(shape=(299,300))
+    tabOfLabel = []
+    tabOfWord = []
+    f = open(fixedFormFilePath)
+    index = 0
+    nbrOfError = 0
+    
+    for i in range(100):
+        line = f.readline()
+        line = line[:len(line)-1]
+        if(not(line in embeddings.wv)):    
+            nbrOfError +=1
+            print(line + " Is not in the embeddings")
+            continue
+        
+        tabOfVector[index] = (embeddings.wv[line].tolist())
+        tabOfLabel.append(0)
+        tabOfWord.append(line)
+        index +=1
+        if(index % 4 == 0): # Add an N1
+            n1 = line.split("-")[0]
+            tabOfVector[index] = (embeddings.wv[n1].tolist())
+            index +=1
+            tabOfWord.append(n1)
+            tabOfLabel.append(1)
+        elif(index % 2 == 0): #Add an N2
+            n2 = line.split("-")[2]
+            tabOfVector[index] = (embeddings.wv[n2].tolist())
+            index +=1
+            tabOfWord.append(n2)
+            tabOfLabel.append(2)
+    f.close()
+    f = open(randomWordPath)
+    for word in f.readlines():
+        word = word.lower()[:len(word)-1]
+        if(not(word in embeddings.wv)):    
+            nbrOfError +=1
+            print(line + " Is not in the embeddings")
+            continue
+        tabOfVector[index] = (embeddings.wv[word].tolist())
+        index+=1
+        tabOfLabel.append(3)
+    return tabOfVector,tabOfLabel,tabOfWord
+            
+
+
+tabOfVector,tabOfLabel,tabOfWord = makeTabOfData()
+
+
+print("Start the reduction")
+X_embedded = TSNE(n_components=2).fit_transform(tabOfVector)
+
+
+X_embedded = np.delete(X_embedded,248,axis=0)
+X_embedded = np.delete(X_embedded,227,axis=0)
+X_embedded = np.delete(X_embedded,158,axis=0)
+X_embedded = np.delete(X_embedded,118,axis=0)
+
+tabOfLabel.pop(245)
+tabOfLabel.pop(224)
+tabOfLabel.pop(158)
+tabOfLabel.pop(118)
+
+sns.set(rc={'figure.figsize':(11.7,8.27)})
+palette = sns.color_palette("bright", 4)
+
+X,y = load_digits(return_X_y=True)
+
+
+sns.scatterplot(X_embedded[:,0], X_embedded[:,1], hue = tabOfLabel,legend='full',palette=palette)

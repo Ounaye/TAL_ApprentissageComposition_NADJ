@@ -1,0 +1,128 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Jun 21 10:56:44 2021
+
+@author: yannis.coutouly
+"""
+
+import random as rd
+import numpy as np
+import tensorflow as tf
+from gensim.models import Word2Vec
+
+# Global Variable -------------------------------------------------------------
+
+generalDataPath = "../SecondBatchExp/DataExperience/"
+fileToTestPath = generalDataPath + "Test/test_N1=8but10_N1=5"
+
+fixedNouns = ["chiot", "agriculteur", "étoile", "peuplier", "hanche", "chronomètre", "isoloirs", "théorie", 
+              "ethnologie", "budget", "dignité", "tendresse", "explosion", "cyclisme", "ablation"]
+
+
+#Load Data --------------------------------------------------------------------
+
+print("Start to load the Data ")
+embeddings = Word2Vec.load(generalDataPath+"Embeddings/embeddings_300_full10Fusion.model")
+X_test = np.load(fileToTestPath + "_X.npy")
+y_test = np.load(fileToTestPath + "_y.npy")
+print("End to load the Data")
+
+print("The size of Test Set is : " + str(len(X_test)) + "\n \n")
+
+
+###############################################################################
+
+def getRankOfCompositionality(index,listOfWord):
+    listOfTuple = []
+    N1deN2Test = y_test[index]
+    n1Tuple = getLvlOfCompositionalityN1(index)
+    n2Tuple = getLvlOfCompositionalityN2(index)
+    if(n1Tuple[1] < n2Tuple[1]): # Insert the tuple in descending order
+        listOfTuple.append(n1Tuple)
+        listOfTuple.append(n2Tuple)
+    else:
+        listOfTuple.append(n2Tuple)
+        listOfTuple.append(n1Tuple)
+    for word in listOfWord: #Get the value and insert word O(n²)
+         if(not(word in embeddings.wv)):
+            print(word + " is not in the corpus")
+            continue
+         vectTmp = embeddings.wv[word] 
+         vect = np.zeros(shape=(1,300))
+         vect[0] = vectTmp
+         compositionality = tf.keras.losses.cosine_similarity(vect,N1deN2Test)
+         compositionality = compositionality.numpy()[0]
+         for i in range(len(listOfTuple)): #Insert the tuple in descending order O(n)
+             if(listOfTuple[i][1] < compositionality):
+                 if(i == len(listOfTuple) -1): #Insert in last Pos
+                     listOfTuple.append((word,compositionality))
+                 continue
+             else:
+                 listOfTuple.insert(i,(word,compositionality))
+                 break
+            
+    rankN1 = 0
+    rankN2 = 0
+    for i in range(len(listOfTuple)): # Get the rank of N1 and N2
+        if(listOfTuple[i][0] == "N1"):
+            rankN1 = i
+            if(not(rankN2 == 0)):
+                break
+        elif(listOfTuple[i][0] == "N2"):
+            rankN2 = i
+            if(not(rankN1 == 0)):
+                break
+    return (rankN1,rankN2)
+             
+###############################################################################
+
+def getLvlOfCompositionalityN1(index):
+    n1n2Vect = X_test[index]
+    n1Vect = n1n2Vect[:300]
+
+    N1deN2Test = y_test[index] # The array to compare
+    
+    compositionality = tf.keras.losses.cosine_similarity(n1Vect,N1deN2Test)
+    compositionality = compositionality.numpy()
+
+    return ("N1",compositionality)
+
+###############################################################################
+
+def getLvlOfCompositionalityN2(index):
+    n1n2Vect = X_test[index]
+    n2Vect = n1n2Vect[300:]
+
+    N1deN2Test = y_test[index] # The array to compare
+    
+    compositionality = tf.keras.losses.cosine_similarity(n2Vect,N1deN2Test)
+    compositionality = compositionality.numpy()
+
+    return ("N2",compositionality)
+
+###############################################################################
+
+def makeSomeStats():
+    sumN1 = 0
+    sumN1Invert = 0
+    sumN2 = 0
+    sumN2Invert = 0
+    for i in range(len(X_test)):
+        if(i % 100 == 0):
+            print(i)
+        tmpTuple = getRankOfCompositionality(i,fixedNouns)
+        sumN1 += tmpTuple[0]
+        sumN1Invert += 1/(tmpTuple[0]+1)
+        sumN2 += tmpTuple[1]
+        sumN2Invert += 1/(tmpTuple[1]+1)
+    print("Le rang moyen des N1 est " + str(sumN1/len(X_test)) + " et le MRR est " + str(sumN1Invert/len(X_test)))
+    print("Le rang moyen des N2 est " + str(sumN2/len(X_test)) + " et le MRR est " + str(sumN2Invert/len(X_test)))
+
+###############################################################################
+
+#makeSomeStats()
+top5 = embeddings.wv.most_similar(["salle-de-bain"], topn=40)
+for i in top5:
+    print(i)
+        

@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Jun 22 15:37:01 2021
+
+@author: yannis.coutouly
+"""
+
+"""
+
+This code is to process the corpus of conll file
+we need to read each file, detect the N1-de-N2 and make the modification 
+
+We will use this process :
+    
+We save each sentences 
+If their is a N1 de N2 
+    We erase all all the line, rewrite it with the modification
+else 
+    we continue
+
+the modification are : regroup the N1-de-N2 in the N1 line
+and adjust all the other index ( so every occurence of an index  greater than the index of N1)
+
+Can i read all the  line then erase things i see before ? ( because it's usually a stream)
+Okay, so we can't but if we open to read and open another to write we might be able to do what we want
+
+
+"""
+
+with open("../conllCorpusProcess/mergedFileTog.txt", "w") as f:
+    readFile = open("../conllCorpusProcess/mergedFile.txt","r")
+    tabOfLine = []
+    nom1 = -1
+    prep = -1
+    nom2 = -1
+    isPresent = False
+    indexN1 = []
+    nbrFixedForm = 0
+    offSet = 0
+    for line in readFile:
+        if(line == "\n"):
+            continue
+        if(line[0] == "#"):
+            if(nbrFixedForm != 0):
+                index2 = 0 # Python don't let me to modify the value of index so i overcome it here
+                nbrFixedFormCount = 0
+                nbrFixedFormCount2 = 0
+                for index in range(len(tabOfLine)): # Change every index past indexN1
+                    lineToCorrect = tabOfLine[index2]
+                    if(not(lineToCorrect.split("\t")[0].isnumeric())): #Is their is a problem of format we erase the line
+                        tabOfLine.pop(index2)
+                        continue
+                    if(int(lineToCorrect.split("\t")[0]) > indexN1[0]): # If the index need to be modified by the offset
+                        indexTmp = lineToCorrect.split("\t")[0]
+                        lineToCorrect = lineToCorrect.replace(indexTmp+"\t", str(int(indexTmp) - int(offSet*(nbrFixedFormCount2/nbrFixedForm)))+"\t",1)
+                    if(int(lineToCorrect.split("\t")[-4]) > indexN1[0]): # If the index of relation need to be modified
+                        dependancyTmp = lineToCorrect.split("\t")[-4]
+                        lineToCorrect = lineToCorrect.replace(dependancyTmp + "\t",str(int(dependancyTmp) - int(offSet*(nbrFixedFormCount2/nbrFixedForm)))+"\t",1)    
+                    if(index2 == indexN1[nbrFixedFormCount]-1): # -1 because the index in the file start at 1 (hérésie ça)
+                        gramarTmp = lineToCorrect.split("\t")[3]
+                        lineToCorrect = lineToCorrect.replace(gramarTmp + "\t", "FIXEDFORM\t")
+                        if(nbrFixedFormCount + 1 < nbrFixedForm):
+                            nbrFixedFormCount+=1
+                        nbrFixedFormCount2 += 1
+                    tabOfLine[index2] = lineToCorrect     
+                    index2 +=1
+                indexN1 = []
+            tabOfLine.append("\n")
+            tabOfLine.append(line)
+            f.writelines(tabOfLine)
+            tabOfLine = []
+            nbrFixedForm = 0
+            offSet = 0
+            nom1 = -1
+            prep = -1
+            continue
+        gramarWord = line.split("\t")[3]
+        word = line.split("\t")[2]
+        indexWord = line.split("\t")[0]
+        if(nom1 == -1 and gramarWord == "NOUN"):
+            nom1 = indexWord
+        elif(nom1 != -1 and prep == -1):
+            if(word == "de"):    
+                prep = indexWord
+            else:
+                nom1 = -1
+        elif(prep != -1 and nom2 == -1):
+            if(gramarWord == "NOUN"): # N1-de-N2 found
+                isPresent = True
+            else:
+                nom1 = -1
+                prep = -1
+        else:
+            nom1 = -1
+            prep = -1
+        if(isPresent):
+            isPresent = False
+            indexN1.append(int(nom1) -2*len(indexN1))
+            nbrFixedForm +=1
+            nom1 = -1
+            prep = -1
+            if(len(tabOfLine) == 1):
+                print("okay")
+            newLine = tabOfLine[-2] # Get the N1 line
+            newLine = newLine.replace(newLine.split("\t")[1]+"\t",newLine.split("\t")[1] + "-de-" +  word + "\t",1)
+            newLine = newLine.replace(newLine.split("\t")[2]+"\t",newLine.split("\t")[2] + "-de-" +  line.split("\t")[2] + "\t",1)
+            tabOfLine.pop(len(tabOfLine)-1)
+            tabOfLine.pop(len(tabOfLine)-1)
+            offSet += 2
+            line = newLine
+            
+        tabOfLine.append(line)
+
+        
+        
+
+f.close()

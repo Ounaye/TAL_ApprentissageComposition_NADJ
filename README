@@ -1,3 +1,6 @@
 The code provided is what has been used to process the dataset, make the experiment
 However the actual dataset and experiment where to heavy to be left on gitHub. 
 For now no real solution has been found except email me and hoping i will answer back, sorry
+
+At least the text file i used to test the NN are still here. They can be transform to .npy
+file with the code provided.
